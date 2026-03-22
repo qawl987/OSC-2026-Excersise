@@ -57,33 +57,31 @@ static int align(int n, int byte) {
 }
 
 void initrd_list(const void* rd) {
-    // TODO: Implement this function
     struct file files[10];
     int file_index = 0;
     struct cpio_t* cpio_header = (struct cpio_t*)rd;
     while (1) {
-        if (cpio_header->magic != "070701") {
-            printf("magic wrong");
+        if (strncmp(cpio_header->magic, "070701", 6) != 0) {
+            printf("magic wrong\n");
             return;
         }
         int name_size = hextoi(cpio_header->namesize, 8);
         int file_size = hextoi(cpio_header->filesize, 8);
-        char* p = align((char*)cpio_header + 110, 4);  // name start
-        if (strcmp(p, "TRAILER!!!")) {
+        char* filename = (char*)cpio_header + 110;
+        if (strcmp(filename, "TRAILER!!!") == 0) {
             break;
         }
-        for (int i = 0; i < name_size; i++) {
-            files[file_index].name[i] = p++;
-        }
-        files[file_index].name[name_size] = '\0';
-        p = align(p, 4);
+        strncpy(files[file_index].name, filename, name_size);
         files[file_index].size = file_size;
-        p = align(p + file_size, 4);
-        cpio_header = p;
+        // 下一個 header = 當前 header + align(110 + name_size, 4) +
+        // align(file_size, 4)
+        int header_plus_name = align(110 + name_size, 4);
+        int total_offset = header_plus_name + align(file_size, 4);
+        cpio_header = (struct cpio_t*)((char*)cpio_header + total_offset);
         file_index++;
     }
     for (int i = 0; i < file_index; i++) {
-        printf("%d %s", files[i].size, files[i].name);
+        printf("%d %s\n", files[i].size, files[i].name);
     }
 }
 
