@@ -20,6 +20,12 @@ struct cpio_t {
     char check[8];
 };
 
+struct file {
+    char name[64];
+    char data[128];
+    int size;
+};
+
 /**
  * @brief Convert a hexadecimal string to integer
  *
@@ -52,6 +58,33 @@ static int align(int n, int byte) {
 
 void initrd_list(const void* rd) {
     // TODO: Implement this function
+    struct file files[10];
+    int file_index = 0;
+    struct cpio_t* cpio_header = (struct cpio_t*)rd;
+    while (1) {
+        if (cpio_header->magic != "070701") {
+            printf("magic wrong");
+            return;
+        }
+        int name_size = hextoi(cpio_header->namesize, 8);
+        int file_size = hextoi(cpio_header->filesize, 8);
+        char* p = align((char*)cpio_header + 110, 4);  // name start
+        if (strcmp(p, "TRAILER!!!")) {
+            break;
+        }
+        for (int i = 0; i < name_size; i++) {
+            files[file_index].name[i] = p++;
+        }
+        files[file_index].name[name_size] = '\0';
+        p = align(p, 4);
+        files[file_index].size = file_size;
+        p = align(p + file_size, 4);
+        cpio_header = p;
+        file_index++;
+    }
+    for (int i = 0; i < file_index; i++) {
+        printf("%d %s", files[i].size, files[i].name);
+    }
 }
 
 void initrd_cat(const void* rd, const char* filename) {
@@ -78,8 +111,8 @@ int main() {
     fclose(fp);
 
     initrd_list(rd);
-    initrd_cat(rd, "osc.txt");
-    initrd_cat(rd, "test.txt");
+    // initrd_cat(rd, "osc.txt");
+    // initrd_cat(rd, "test.txt");
 
     free(rd);
     return 0;
