@@ -85,8 +85,29 @@ void initrd_list(const void* rd) {
     }
 }
 
-void initrd_cat(const void* rd, const char* filename) {
-    // TODO: Implement this function
+void initrd_cat(const void* rd, const char* desire_filename) {
+    struct cpio_t* cpio_header = (struct cpio_t*)rd;
+    while (1) {
+        if (strncmp(cpio_header->magic, "070701", 6) != 0) {
+            printf("magic wrong\n");
+            return;
+        }
+        int name_size = hextoi(cpio_header->namesize, 8);
+        int file_size = hextoi(cpio_header->filesize, 8);
+        char* filename = (char*)cpio_header + 110;
+        if (strcmp(filename, "TRAILER!!!") == 0) {
+            break;
+        } else if (strcmp(filename, desire_filename)) {  // not wanted, skip
+            int header_plus_name = align(110 + name_size, 4);
+            int total_offset = header_plus_name + align(file_size, 4);
+            cpio_header = (struct cpio_t*)((char*)cpio_header + total_offset);
+        } else {
+            int header_plus_name = align(110 + name_size, 4);
+            printf("%s", (char*)cpio_header + header_plus_name);
+            return;
+        }
+    }
+    printf("init cat: %s: no such file\n", desire_filename);
 }
 
 int main() {
@@ -109,8 +130,8 @@ int main() {
     fclose(fp);
 
     initrd_list(rd);
-    // initrd_cat(rd, "osc.txt");
-    // initrd_cat(rd, "test.txt");
+    initrd_cat(rd, "osc.txt");
+    initrd_cat(rd, "test.txt");
 
     free(rd);
     return 0;
