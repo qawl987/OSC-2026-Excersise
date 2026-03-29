@@ -4,6 +4,7 @@
 
 #define NUM_PAGES 0x280000
 #define MAX_ORDER 10
+#define min(a, b) ((a) < (b) ? (a) : (b))
 
 struct page {
     int order = 0;
@@ -19,10 +20,52 @@ struct page* get_buddy(struct page* page, unsigned int order) {
 
 struct page* alloc_pages(unsigned int order) {
     // TODO: Implement this function
+    int current_order = -1;
+    for (int i = order; i <= MAX_ORDER; i++) {
+        if (!free_area[i].empty()) {
+            current_order = i;
+            break;
+        }
+    }
+    if (current_order == -1) {
+        return nullptr;
+    }
+    while (current_order > order) {
+        struct page* p = free_area[current_order].front();
+        free_area[current_order].pop_front();
+        current_order--;
+        struct page* buddy = p + (1 << current_order);
+        p->order = current_order;
+        buddy->order = current_order;
+        free_area[current_order].push_back(p);
+        free_area[current_order].push_back(buddy);
+    }
+    struct page* allocated_page = free_area[order].front();
+    free_area[order].pop_front();
+    allocated_page->refcount++;
+    allocated_page->order = order;
+    return allocated_page;
 }
 
 void free_pages(struct page* page) {
     // TODO: Implement this function
+    page->refcount--;
+    if (page->refcount > 0)
+        return;
+    int current_order = page->order;
+    struct page* cur_p = page;
+    while (current_order < MAX_ORDER) {
+        struct page* buddy = get_buddy(cur_p, current_order);
+        if (buddy->refcount == 0 && buddy->order == current_order) {
+            free_area[current_order].remove(buddy);
+            cur_p = min(cur_p, buddy);
+            current_order++;
+            cur_p->order = current_order;
+        } else {
+            break;
+        }
+    }
+    free_area[current_order].push_back(cur_p);
 }
 
 void dump() {
