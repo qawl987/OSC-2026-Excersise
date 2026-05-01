@@ -12,7 +12,7 @@ build: clean
 	$(OBJCOPY) -O binary $(TARGET).elf $(TARGET)
 
 run: build $(TARGET)
-	$(QEMU) -M virt -m 8G -kernel $(TARGET) -serial stdio -device ramfb
+	$(QEMU) -M virt -m 8G -kernel $(TARGET) -serial stdio -device ramfb -display vnc=:1
 
 clean:
 	rm -f $(TARGET) $(TARGET).elf *.o
