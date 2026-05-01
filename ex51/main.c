@@ -43,17 +43,9 @@ extern void switch_to(struct task_struct* prev, struct task_struct* next);
 
 void schedule() {
     // TODO: Implement this function
-    struct task_struct* queue = run_queue;
-    struct task_struct* prev = queue->next;
-    struct task_struct* cur = prev->next;
-    switch_to(prev, cur);
-    while (cur->next != queue) {
-        prev = cur;
-        cur = cur->next;
-    }
-    prev->next = cur->next;
-    cur->next = queue->next;
-    queue->next = cur;
+    struct task_struct* prev = get_current();
+    struct task_struct* next = prev->next;
+    switch_to(prev, next);
 }
 
 void idle() {
