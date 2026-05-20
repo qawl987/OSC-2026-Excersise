@@ -11,20 +11,21 @@ extern void* alloc_page();
 
 #define NUM_PAGES 0x280000
 
-#define PAGE_OFFSET 0xffffffc000000000UL
-#define PAGE_SIZE   (1UL << 12)
-#define PGD_SIZE    (1UL << 30)
-#define PFN_DOWN(x) ((x) >> 12)
+#define PAGE_OFFSET         0xffffffc000000000UL
+#define PAGE_SIZE           (1UL << 12)
+#define PGD_SIZE            (1UL << 30)
+#define PFN_DOWN(x)         ((x) >> 12)
+#define MAKE_PTE(pa, flags) ((((unsigned long)(pa)) >> 12) << 10 | (flags))
 
 /* PTE descriptor bits (Sv39) */
-#define PTE_V  (1UL << 0)
-#define PTE_R  (1UL << 1)
-#define PTE_W  (1UL << 2)
-#define PTE_X  (1UL << 3)
-#define PTE_U  (1UL << 4)
-#define PTE_G  (1UL << 5)
-#define PTE_A  (1UL << 6)
-#define PTE_D  (1UL << 7)
+#define PTE_V    (1UL << 0)
+#define PTE_R    (1UL << 1)
+#define PTE_W    (1UL << 2)
+#define PTE_X    (1UL << 3)
+#define PTE_U    (1UL << 4)
+#define PTE_G    (1UL << 5)
+#define PTE_A    (1UL << 6)
+#define PTE_D    (1UL << 7)
 #define PTE_SOFT (3UL << 8)
 
 #define PROT_KERNEL    (PTE_V | PTE_R | PTE_W | PTE_X | PTE_G | PTE_A | PTE_D)
@@ -43,13 +44,40 @@ void setup_vm() {
     for (int i = 0; i < NUM_PAGES / (PGD_SIZE / PAGE_SIZE); i++) {
         pgd[256 + i] = (i * (PGD_SIZE / PAGE_SIZE)) << 10 | PROT_KERNEL;
     }
-    asm("csrw satp, %0" ::"r"(PFN_DOWN((unsigned long)pgd) |
-                              SATP_SV39));
+    pgd[256] |= MAKE_PTE(0x00000000UL, PROT_KERNEL);
+    asm("csrw satp, %0" ::"r"(PFN_DOWN((unsigned long)pgd) | SATP_SV39));
     asm("sfence.vma");
 }
 
 static void pagewalk(unsigned long va, unsigned long pa, unsigned long prot) {
     // TODO: Implement this function
+    // step1 get PMD pa
+    int vpn2 = (va >> 30) & 0x1ff;
+    int vpn1 = (va >> 21) & 0x1ff;
+    int vpn0 = (va >> 12) & 0x1ff;
+    unsigned long* pmd_va = 0;
+    if ((pgd[vpn2] & PTE_V) == 0) {
+        void* p = alloc_page();
+        memset(p, 0, PAGE_SIZE);
+        pmd_va = (unsigned long*)p;
+        pgd[vpn2] = MAKE_PTE(virt_to_phys(pmd_va), PTE_V);
+    } else {
+        unsigned long pmd_pa = ((pgd[vpn2] >> 10) << 12);
+        pmd_va = (unsigned long*)phys_to_virt(pmd_pa);
+    }
+    // step2 get PTE pa
+    unsigned long* pte_va = 0;
+    if ((pmd_va[vpn1] & PTE_V) == 0) {
+        void* p = alloc_page();
+        memset(p, 0, PAGE_SIZE);
+        pte_va = (unsigned long*)p;
+        pmd_va[vpn1] = MAKE_PTE(virt_to_phys(pte_va), PTE_V);
+    } else {
+        unsigned long pte_pa = ((pmd_va[vpn1] >> 10) << 12);
+        pte_va = (unsigned long*)phys_to_virt(pte_pa);
+    }
+    // step3 assign pa to pte[va index]
+    pte_va[vpn0] = MAKE_PTE(pa, prot);
 }
 
 void map_pages(unsigned long va,
@@ -61,7 +89,7 @@ void map_pages(unsigned long va,
 }
 
 // TODO:
-#define INITRD_BASE phys_to_virt(0xa0200000)
+#define INITRD_BASE phys_to_virt(0x88200000)
 
 struct cpio_t {
     char magic[6];
