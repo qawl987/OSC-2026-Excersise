@@ -55,22 +55,18 @@ void setup_vm(void) {
 
             // 寫入 PMD 項目（因為帶有 PROT_KERNEL 權限，硬體會認定這是 2MB
             // 葉子節點）
-            pmd_identity[g][p] = MAKE_PTE(pa, PROT_KERNEL);
-            pmd_kernel[g][p] = MAKE_PTE(pa, PROT_KERNEL);
+            pmd[g][p] = MAKE_PTE(pa, PROT_KERNEL);
         }
     }
 
     for (int i = 0; i < 4; i++) {
-        unsigned long pmd_id_pa = (unsigned long)pmd_identity[i];
-        unsigned long pmd_k_pa = (unsigned long)pmd_kernel[i];
-        if (pmd_id_pa >= PAGE_OFFSET)
-            pmd_id_pa -= PAGE_OFFSET;
-        if (pmd_k_pa >= PAGE_OFFSET)
-            pmd_k_pa -= PAGE_OFFSET;
+        unsigned long pmd_pa = (unsigned long)pmd[i];
+        if (pmd_pa >= PAGE_OFFSET)
+            pmd_pa -= PAGE_OFFSET;
         unsigned long low_va = 0x80000000UL + (i * 0x40000000UL);
         unsigned long high_va = PAGE_OFFSET + low_va;
-        pgd[KERNEL_PGD_INDEX(low_va)] = MAKE_PTE(pmd_id_pa, PTE_V);
-        pgd[KERNEL_PGD_INDEX(high_va)] = MAKE_PTE(pmd_k_pa, PTE_V);
+        pgd[KERNEL_PGD_INDEX(low_va)] = MAKE_PTE(pmd_pa, PTE_V);
+        pgd[KERNEL_PGD_INDEX(high_va)] = MAKE_PTE(pmd_pa, PTE_V);
     }
 
     unsigned long uart_pa = 0x10000000UL;
